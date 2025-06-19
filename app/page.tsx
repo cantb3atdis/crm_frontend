@@ -1,3 +1,7 @@
-import Page from "../src/app/page"
+"use client"
 
-export default Page
+import { ThemeProvider } from "../src/components/theme-provider"
+
+export default function SyntheticV0PageForDeployment() {
+  return <ThemeProvider />
+}
