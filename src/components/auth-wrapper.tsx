@@ -1,47 +1,59 @@
 "use client"
 
 import type React from "react"
-
-import { useSession } from "./auth-provider"
-import { Sidebar } from "./sidebar"
-import { usePathname } from "next/navigation"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { supabase } from "../lib/supabase"
+import type { User } from "@supabase/supabase-js"
 
-export function AuthWrapper({ children }: { children: React.ReactNode }) {
-  const { session, isLoading } = useSession()
-  const pathname = usePathname()
+interface AuthWrapperProps {
+  children: React.ReactNode
+}
+
+export function AuthWrapper({ children }: AuthWrapperProps) {
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
-    if (!isLoading && !session && pathname !== "/auth") {
-      router.push("/auth")
-    }
-  }, [session, isLoading, pathname, router])
+    // Get initial session
+    const getSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      setUser(session?.user ?? null)
+      setLoading(false)
 
-  if (isLoading) {
+      if (!session) {
+        router.push("/auth")
+      }
+    }
+
+    getSession()
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+      if (!session) router.push("/auth")
+    })
+
+    return () => subscription.unsubscribe()
+  }, [router])
+
+  if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
       </div>
     )
   }
 
-  // Show auth page without sidebar
-  if (pathname === "/auth") {
-    return <>{children}</>
-  }
+  if (!user) return null
 
-  // Redirect to auth if not authenticated
-  if (!session) {
-    return null
-  }
-
-  // Show dashboard with sidebar for authenticated users
-  return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar />
-      <main className="flex-1 overflow-auto">{children}</main>
-    </div>
-  )
+  return <>{children}</>
 }
+
+// Provide a default export as well so either import style works
+export default AuthWrapper
